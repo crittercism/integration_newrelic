@@ -1,0 +1,5 @@
+.idea
+*.pyc
+adobe.log
+test.py
+lib/crittercism
