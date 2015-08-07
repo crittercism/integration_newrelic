@@ -2,3 +2,7 @@
 *.pyc
 adobe.log
 test.py
+history.db
+.coverage
+htmlcov
+unittest.db
