@@ -25,7 +25,7 @@ class TransactionsETL(BaseETL):
                         self._events.append(self.make_event(trace, group_name))
 
     def make_event(self, trace, group_name):
-        dt = datetime.strptime(trace[u'traceTs'], '%Y-%m-%dT%H:%M:%S.000Z')
+        dt = datetime.strptime(trace[u'traceTs'], '%Y-%m-%dT%H:%M:%S.%fZ')
         e = Event(self._new_relic_account, self._new_relic_app_id, self._event_type, dt)
         e.set('group', group_name)
         for k, v in trace.items():
