@@ -21,7 +21,11 @@ class ErrorsByVersionProcessor(BaseETL):
         cumulative_previously_known = 0
         for cr_error in errors_with_details:
             todays_date = cr_error.current_date().strftime('%Y-%m-%d')
-            e = Event(new_relic_account, new_relic_app_id, event_type, datetime.now())
+            event_date = cr_error.as_event_dict()['firstOccurred']
+            if event_date:
+                e = Event(new_relic_account, new_relic_app_id, event_type, event_date)
+            else:
+                e = Event(new_relic_account, new_relic_app_id, event_type, datetime.now())
 
             for k, v in cr_error.as_event_dict().items():
                 e.set(k, v)
@@ -45,7 +49,7 @@ class ErrorsByVersionProcessor(BaseETL):
 
                 self._to_save.append((event_type, cr_error.crittercism_hash(), version,
                                       todays_date, version_occurrences))
-                
+
         self._events = events
         logging.getLogger().info('AppId=%s Event=%s num_found=%s num_known=%s num_new=%s',
                                  app_id, event_type, cumulative_errors_found, cumulative_previously_known, len(events))
