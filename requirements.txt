@@ -1,2 +1,2 @@
 httplib2
-git+ssh://git@github.com/crittercism/integration_library.git
+mock

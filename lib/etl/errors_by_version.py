@@ -1,5 +1,3 @@
-__author__ = 'larry'
-
 import copy
 import logging
 from datetime import datetime
@@ -45,7 +43,7 @@ class ErrorsByVersionProcessor(BaseETL):
 
                 self._to_save.append((event_type, cr_error.crittercism_hash(), version,
                                       todays_date, version_occurrences))
-                
+
         self._events = events
         logging.getLogger().info('AppId=%s Event=%s num_found=%s num_known=%s num_new=%s',
                                  app_id, event_type, cumulative_errors_found, cumulative_previously_known, len(events))
