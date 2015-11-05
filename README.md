@@ -3,8 +3,6 @@
 
 pip install -r requirements.txt
 
-Note: This will require access to the repository located at: git@github.com/crittercism/integration_library.git
-
 ## Usage
 
 `./new_relic_connector.py upload <app_id> [<app_id>...]`
