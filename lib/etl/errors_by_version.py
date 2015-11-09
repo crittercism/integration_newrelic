@@ -21,7 +21,7 @@ class ErrorsByVersionProcessor(BaseETL):
         cumulative_previously_known = 0
         for cr_error in errors_with_details:
             todays_date = cr_error.current_date().strftime('%Y-%m-%d')
-            event_date = cr_error.as_event_dict()['firstOccurred']
+            event_date = datetime.strftime(cr_error.as_event_dict()['firstOccurred'], '%Y-%m-%d')
             if event_date:
                 e = Event(new_relic_account, new_relic_app_id, event_type, event_date)
             else:
