@@ -6,7 +6,7 @@ from lib.new_relic.models import Event
 class TransactionsETL(BaseETL):
     def __init__(self, app_id, lookback_minutes, new_relic_account, new_relic_app_id):
         super(TransactionsETL, self).__init__(app_id, lookback_minutes, new_relic_account, new_relic_app_id,
-                                              'Transaction')
+                                              'apteligent_userflow')
 
         period = 'PT%sM' % lookback_minutes
 
