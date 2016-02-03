@@ -3,7 +3,7 @@ from lib.etl.errors_by_version import ErrorsByVersionProcessor
 
 
 class CrashETL(ErrorsByVersionProcessor):
-    EVENT_TYPE = 'Crash'
+    EVENT_TYPE = 'apteligent_crash'
 
     def __init__(self, app_id, lookback_minutes, new_relic_account, new_relic_app_id):
         super(CrashETL, self).__init__(app_id, lookback_minutes, new_relic_account, new_relic_app_id, self.EVENT_TYPE)

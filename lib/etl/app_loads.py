@@ -10,7 +10,7 @@ class AppLoadETL(MetricsAggregateSplitter):
     NO_ADDITIONAL_METRICS = {}
 
     def __init__(self, app_id, lookback_minutes, new_relic_account, new_relic_app_id):
-        super(AppLoadETL, self).__init__(app_id, lookback_minutes, new_relic_account, new_relic_app_id, 'App Load')
+        super(AppLoadETL, self).__init__(app_id, lookback_minutes, new_relic_account, new_relic_app_id, 'apteligent_appload')
 
     def get_data(self, metric):
         logging.getLogger().debug('Getting data for metric=%s', metric)

@@ -3,7 +3,7 @@ from lib.etl.errors_by_version import ErrorsByVersionProcessor
 
 
 class ExceptionETL(ErrorsByVersionProcessor):
-    EVENT_TYPE = 'Exception'
+    EVENT_TYPE = 'apteligent_exception'
 
     def __init__(self, app_id, lookback_minutes, new_relic_account, new_relic_app_id):
         super(ExceptionETL, self).__init__(app_id, lookback_minutes, new_relic_account, new_relic_app_id,

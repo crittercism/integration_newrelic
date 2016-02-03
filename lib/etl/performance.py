@@ -15,7 +15,7 @@ class PerformanceMetricsETL(MetricsAggregateSplitter):
 
     def __init__(self, app_id, lookback_minutes, new_relic_account, new_relic_app_id):
         super(PerformanceMetricsETL, self).__init__(app_id, lookback_minutes, new_relic_account, new_relic_app_id,
-                                                    'Mobile')
+                                                    'apteligent_service_monitoring')
 
     def get_data(self, metric):
         logging.getLogger().debug('Getting data for metric=%s', metric)
