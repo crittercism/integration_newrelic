@@ -74,6 +74,7 @@ class CrittercismClient(object):
             'Accept-Language': 'en-US,en;q=0.8',
             'Accept': 'application/json',
             'Connection': 'keep-alive',
+            'CR-source': 'integration_new_relic'
         }
 
         body_str = urllib.urlencode(body_data)
