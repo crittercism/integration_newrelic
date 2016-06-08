@@ -259,7 +259,8 @@ class CrittercismClient(object):
         return content
 
     def exception_details(self, crash_hash, include_diagnostics=False):
-        url_suffix = 'exception/%s?diagnostics=%s' % (crash_hash, include_diagnostics)
+        url_suffix = 'exception/%s?diagnostics=%s&dailyOccurrences=true' % (
+                crash_hash, include_diagnostics)
         content = self.__request('GET', url_suffix, {})
         return CRException(content)
 
