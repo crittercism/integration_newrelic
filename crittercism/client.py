@@ -13,9 +13,8 @@ from models import (CRCrash, TimeoutException, MalformedRequestException, Authen
 
 class CrittercismClient(object):
     CRITTERCISM_API_DOMAIN = os.environ.get('CR_API_DOMAIN', 'developers.crittercism.com')
-    CRITTERCISM_TX_API_DOMAIN = os.environ.get('CR_TX_API_DOMAIN', 'txn-report.crittercism.com')
     CRITTERCISM_URL = 'https://%s/v1.0/%s'
-    CRITTERCISM_TX_URL = 'https://%s/v1.0/%s/%s'
+    CRITTERCISM_TX_URL = 'https://%s/v1.0/transactions/%s/%s'
 
     # /allyourbase
     # /v1.0/base
@@ -238,7 +237,7 @@ class CrittercismClient(object):
         return content
 
     def crash_details(self, crash_hash, include_diagnostics=False):
-        url_suffix = 'crash/%s?diagnostics=%s' % (crash_hash, include_diagnostics)
+        url_suffix = 'crash/%s?dailyOccurrences=true&diagnostics=%s' % (crash_hash, include_diagnostics)
         content = self.__request('GET', url_suffix, {})
         return CRCrash(content)
 
@@ -276,6 +275,6 @@ class CrittercismClient(object):
     # Transactions Beta Stuff
     def transactions_details(self, app_id, period=None):
         url_suffix = 'details/change/%s' % period
-        url = self.CRITTERCISM_TX_URL % (self.CRITTERCISM_TX_API_DOMAIN, app_id, url_suffix)
+        url = self.CRITTERCISM_TX_URL % (self.CRITTERCISM_API_DOMAIN, app_id, url_suffix)
         content = self.get_paged_transaction_data(app_id, url)
         return content

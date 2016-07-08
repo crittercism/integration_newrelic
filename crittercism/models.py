@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime, timedelta
 
 
@@ -39,6 +40,9 @@ class App(object):
 
     def name(self):
         return self._data[u'appName']
+
+    def versions(self):
+        return self._data[u'appVersions']
 
     def set_app_load_data(self, app_load_data):
         self._app_load_data = app_load_data
@@ -90,7 +94,22 @@ class CRErrorBase(object):
         }
 
     def build_date_map(self):
-        incomplete_data_latest_date, daily_data = self._data[u'dailyOccurrencesByVersion'][u'total']
+        daily_occurrences_by_version = self._data[u'dailyOccurrencesByVersion']
+        total = defaultdict(int)
+        for version, errors in daily_occurrences_by_version.items():
+            start_date = datetime.strptime(errors[0], '%Y-%m-%d')
+            daily_error_counts = errors[1]
+            for index, error_count in enumerate(reversed(daily_error_counts)):
+                date = (start_date - timedelta(days=index))
+                total[date] += error_count
+
+        dates = sorted(total.keys())
+        total_daily_occurrences = (dates[-1].strftime('%Y-%m-%d'), [])
+
+        for date in dates:
+            total_daily_occurrences[1].append(total[date])
+
+        incomplete_data_latest_date, daily_data = total_daily_occurrences
         latest_complete_datetime = datetime.strptime(incomplete_data_latest_date, '%Y-%m-%d')
 
         today = datetime.today().strftime('%Y-%m-%d')
