@@ -41,9 +41,6 @@ class App(object):
     def name(self):
         return self._data[u'appName']
 
-    def versions(self):
-        return self._data[u'appVersions']
-
     def set_app_load_data(self, app_load_data):
         self._app_load_data = app_load_data
 
