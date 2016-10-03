@@ -1,5 +1,5 @@
 import base64
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import json
 import urllib
@@ -52,13 +52,16 @@ class CrittercismClient(object):
     def get_paged_transaction_data(self, app_id, url):
         token = self.__token_for_app_id(app_id)
         pages = []
+        page_num = 1
         page = self.__request_helper('GET', url, {}, token)
 
         while page:
             pages.append(page)
+            page_num += 1
+            next_url = url + '?pageNum={}'.format(page_num)
 
             if page.get(u'pagination') and page.get(u'pagination')[u'nextPage']:
-                page = self.__get_transaction_url(page.get(u'pagination')[u'nextPage'], token)
+                page = self.__request_helper('GET', next_url, {}, token)
             else:
                 page = None
 
@@ -83,6 +86,8 @@ class CrittercismClient(object):
 
         if extra_headers:
             headers.update(extra_headers)
+        url = url.replace(' ', '%20')
+        print "TRYING", url
 
         try:
             response, content = self._http.request(url,
@@ -194,6 +199,15 @@ class CrittercismClient(object):
         response = [App(app_id, app_data) for app_id, app_data in content.items()]
         return response
 
+    def app_versions(self, app_id):
+        url_suffix = 'apps?attributes=appVersions'
+        content = self.__request('GET', url_suffix, {})
+
+        versions = content[app_id]['appVersions']
+
+        return versions
+
+
     # /errorMonitoring/graph
     def error_monitoring_graph(self, error_monitoring_request):
         url_suffix = 'errorMonitoring/graph'
@@ -226,6 +240,24 @@ class CrittercismClient(object):
 
         return content
 
+    def crash_paginated_tables(self, app_id, app_version=None,
+                               lookback_timedelta=None):
+        url_suffix = '{}/crash/paginatedtable'.format(app_id)
+
+        if app_version:
+            url_suffix += u'?appVersion={}&'.format(app_version)
+
+        if lookback_timedelta:
+            start_date = (datetime.now() - lookback_timedelta).isoformat()
+            end_date = datetime.now().isoformat()
+
+            url_suffix += 'startDate={}&endDate={}'.format(start_date,
+                                                            end_date)
+
+        content = self.__request('GET', url_suffix, {})
+
+        return content
+
     def app_crash_summaries(self, app_id, lookback_timedelta=None):
         url_suffix = 'app/%s/crash/summaries' % app_id
 
@@ -236,9 +268,7 @@ class CrittercismClient(object):
 
         return content
 
-    def crash_details(self, crash_hash, include_diagnostics=False):
-        url_suffix = 'crash/%s?dailyOccurrences=true&diagnostics=%s' % (crash_hash, include_diagnostics)
-        content = self.__request('GET', url_suffix, {})
+    def crash_details(self, content):
         return CRCrash(content)
 
     def app_exception_counts(self, app_id):

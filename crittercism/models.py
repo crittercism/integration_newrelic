@@ -55,10 +55,17 @@ class CRErrorBase(object):
     def __init__(self, hash_init):
         self._data = hash_init
         self._oldest_available = None
-        self._tz_offset = self._data[u'appTimeZoneOffset']
+        if self.is_crash:
+            self._tz_offset = self._data.get('app_timezone_offset')
+        else:
+            self._tz_offset = self._data.get('appTimeZoneOffset')
         self._todays_date = (datetime.utcnow() + timedelta(hours=self._tz_offset))
-        self._latest_complete_date, self.date_map = self.build_date_map()
-        self._today_partial_occurrences = self.latest_occurrences_by_version()
+        if self.build_date_map():
+            self._latest_complete_date, self.date_map = self.build_date_map()
+        if self.is_crash:
+            self._today_partial_occurrences = self.latest_occurrences_by_version()
+        else:
+            self._today_partial_occurrences = {}
 
     def latest_complete_date_occurrences(self):
         return self.date_map[self._latest_complete_date]
@@ -83,31 +90,38 @@ class CRErrorBase(object):
         return self.date_map.get(self.normalize_datetime_to_midnight(date), 0)
 
     def latest_occurrences_by_version(self):
-        todays_date = self._todays_date.strftime('%Y-%m-%d')
+        todays_date = self._todays_date.strftime('%Y%m%d')
         return {
             version: num_list[0] if date == todays_date else 0
             for version, [date, num_list]
-            in self._data[u'dailyOccurrencesByVersion'].items()
+            in self._data['daily_occurrences_by_version'].items()
         }
 
     def build_date_map(self):
-        daily_occurrences_by_version = self._data[u'dailyOccurrencesByVersion']
-        total = defaultdict(int)
-        for version, errors in daily_occurrences_by_version.items():
-            start_date = datetime.strptime(errors[0], '%Y-%m-%d')
-            daily_error_counts = errors[1]
-            for index, error_count in enumerate(reversed(daily_error_counts)):
-                date = (start_date - timedelta(days=index))
-                total[date] += error_count
+        if self.is_crash:
+            incomplete_data_latest_date, daily_data = self._data['daily_occurrences']
+            latest_complete_datetime = datetime.strptime(
+                incomplete_data_latest_date, '%Y%m%d')
+        else:
+            daily_occurrences_by_version = self._data.get(u'dailyOccurrencesByVersion')
+            if daily_occurrences_by_version:
+                incomplete_data_latest_date, daily_data = daily_occurrences_by_version[u'total']
+                latest_complete_datetime = datetime.strptime(incomplete_data_latest_date, '%Y-%m-%d')
+                total = defaultdict(int)
+                for version, errors in daily_occurrences_by_version.items():
+                    start_date = datetime.strptime(errors[0], '%Y-%m-%d')
+                    daily_error_counts = errors[1]
+                    for index, error_count in enumerate(reversed(daily_error_counts)):
+                        date = (start_date - timedelta(days=index))
+                        total[date] += error_count
 
-        dates = sorted(total.keys())
-        total_daily_occurrences = (dates[-1].strftime('%Y-%m-%d'), [])
+                dates = sorted(total.keys())
+                total_daily_occurrences = (dates[-1].strftime('%Y-%m-%d'), [])
 
-        for date in dates:
-            total_daily_occurrences[1].append(total[date])
-
-        incomplete_data_latest_date, daily_data = total_daily_occurrences
-        latest_complete_datetime = datetime.strptime(incomplete_data_latest_date, '%Y-%m-%d')
+                for date in dates:
+                    total_daily_occurrences[1].append(total[date])
+            else:
+                return None
 
         today = datetime.today().strftime('%Y-%m-%d')
         if incomplete_data_latest_date == today:
@@ -123,36 +137,50 @@ class CRErrorBase(object):
         return latest_complete_datetime, date_map
 
     def unique_session_count(self):
-        return self._data[u'uniqueSessionCountsByVersion'][u'total']
+        return self._data['num_unique_sessions']
 
     def crittercism_hash(self):
         return self._data[u'hash']
 
     def crittercism_app_id(self):
-        return self._data[u'appId']
+        return self._data['appId']
 
-    def as_event_dict(self):
-        return {
-            'crAppId': self._data[u'appId'],
-            'hash': self._data[u'hash'],
-            'unsymbolizedHash': self._data[u'unsymbolizedHash'],
-            'firstOccurred': self._data[u'firstOccurred'],
-            'appType': self._data[u'appType'],
-            'name': self._data[u'name'],
-            'reason': self._data[u'reason'],
-            'displayReason': self._data[u'displayReason'],
-        }
+    def as_event_dict(self, app_id):
+        if self.is_crash:
+            return {
+                'crAppId': app_id,
+                'hash': self._data['hash'],
+                'firstOccurred': self._data['first_occurred_time'],
+                'name': self._data['name'],
+                'reason': self._data['reason'],
+                'displayReason': self._data['display_reason'],
+                }
+        else:
+            return {
+                'crAppId': self._data[u'appId'],
+                'hash': self._data[u'hash'],
+                'unsymbolizedHash': self._data[u'unsymbolizedHash'],
+                'firstOccurred': self._data[u'firstOccurred'],
+                'appType': self._data[u'appType'],
+                'name': self._data[u'name'],
+                'reason': self._data[u'reason'],
+                'displayReason': self._data[u'displayReason'],
+                }
 
     def __str__(self):
         return '%s' % self._data
 
 
 class CRCrash(CRErrorBase):
-    pass
+    def __init__(self, hash_init):
+        self.is_crash = True
+        super(CRCrash, self).__init__(hash_init)
 
 
 class CRException(CRErrorBase):
-    pass
+    def __init__(self, hash_init):
+        self.is_crash = False
+        super(CRException, self).__init__(hash_init)
 
 
 class ErrorMonitoringRequest(object):
@@ -163,7 +191,13 @@ class ErrorMonitoringRequest(object):
     APP_IDS_KEY = 'appIds'
     APP_ID_KEY = 'appId'
 
-    VALID_METRICS = {'dau', 'mau', 'rating', 'crashes', 'crashPercent', 'appLoads', 'affectedUsers',
+    VALID_METRICS = {'dau',
+                     'mau',
+                     'rating',
+                     'crashes',
+                     'crashPercent',
+                     'appLoads',
+                     'affectedUsers',
                      'affectedUserPercent'}
     VALID_DURATIONS = {1440, 10800, 43200}
 
@@ -184,7 +218,8 @@ class ErrorMonitoringRequest(object):
             self._data.update(extras)
 
     def as_hash(self):
-        if not self._data.get(self.APP_IDS_KEY) and not self._data.get(self.APP_ID_KEY):
+        if not self._data.get(self.APP_IDS_KEY) and not self._data.get(
+                self.APP_ID_KEY):
             raise MalformedRequestException
 
         return self._data
@@ -201,8 +236,10 @@ class CrittercismMonitoringResponse(object):
         self._slices_by_name = {s[u'name']: s[u'value'] for s in self._slices}
         self._slices_by_label = {s[u'label']: s[u'value'] for s in self._slices}
         self._group_list = [(s[u'name'], s[u'label']) for s in self._slices]
-        self._start_time = datetime.strptime(self._response[u'start'], '%Y-%m-%dT%H:%M:%S')
-        self._end_time = datetime.strptime(self._response[u'end'], '%Y-%m-%dT%H:%M:%S')
+        self._start_time = datetime.strptime(self._response[u'start'],
+                                             '%Y-%m-%dT%H:%M:%S')
+        self._end_time = datetime.strptime(self._response[u'end'],
+                                           '%Y-%m-%dT%H:%M:%S')
 
     def slices(self):
         return self._slices
@@ -240,7 +277,8 @@ class ErrorMonitoringGraph(CrittercismMonitoringResponse):
             date_map[d] = day_data
             d += ONE_DAY
 
-        assert d == datetime.strptime(self._response[u'end'], '%Y-%m-%dT%H:%M:%S')
+        assert d == datetime.strptime(self._response[u'end'],
+                                      '%Y-%m-%dT%H:%M:%S')
         return date_map
 
     def earliest_date(self):
