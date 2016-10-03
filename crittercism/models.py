@@ -98,6 +98,15 @@ class CRErrorBase(object):
         }
 
     def build_date_map(self):
+        """
+        For crashes, this uses the array of arrays in 'daily_occourrences'
+        For exceptions, adds the 'dailyOccurrencesByVersion' for each version
+        to get the total daily occurrences.
+
+        :return: The datetime of the last day of complete data,
+        and a dictionary of datetimes with the total number of occurrences
+        of this crash on that day.
+        """
         if self.is_crash:
             incomplete_data_latest_date, daily_data = self._data['daily_occurrences']
             latest_complete_datetime = datetime.strptime(

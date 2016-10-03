@@ -87,7 +87,6 @@ class CrittercismClient(object):
         if extra_headers:
             headers.update(extra_headers)
         url = url.replace(' ', '%20')
-        print "TRYING", url
 
         try:
             response, content = self._http.request(url,
