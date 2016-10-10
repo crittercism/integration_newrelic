@@ -30,7 +30,7 @@ class AppVersionsTestCase(BaseTestCase):
     def test_app_versions(self):
         self.mock_get.side_effect = [self._response_with_json_data(
             200,
-            {'bogusAppId': {'appVersions': ['version1', 'version2']}})]
+            {'data':{'bogusAppId': {'appVersions': ['version1', 'version2']}}})]
         versions = crittercism.client.CrittercismClient.app_versions(
             self.cc,
             'bogusAppId'
