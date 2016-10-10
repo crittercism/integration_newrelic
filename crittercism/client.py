@@ -1,10 +1,9 @@
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime
+from datetime import timedelta
 import os
-import json
-import urllib
+import requests
 
-import httplib2
 
 from models import (CRCrash, TimeoutException, MalformedRequestException, AuthenticationException,
                     RateLimitExceededException, ServerErrorException, CrittercismException, PerformanceManagementPie,
@@ -27,7 +26,6 @@ class CrittercismClient(object):
     # /crash/{hash}
     # /exception/{hash}
     def __init__(self, auth_hash):
-        self._http = httplib2.Http(timeout=60)
         self._client_id = auth_hash.get('client_id')
         self._username = auth_hash.get('username')
         self._password = auth_hash.get('password')
@@ -46,8 +44,14 @@ class CrittercismClient(object):
         return token
 
     def __request(self, verb, url_suffix, body_data):
-        return self.__request_helper(verb, self.CRITTERCISM_URL % (self.CRITTERCISM_API_DOMAIN, url_suffix),
-                                     body_data, self._oauth_token)
+        return self.__request_helper(
+            verb,
+            self.CRITTERCISM_URL % (
+                self.CRITTERCISM_API_DOMAIN,
+                url_suffix),
+            body_data,
+            self._oauth_token
+        )
 
     def get_paged_transaction_data(self, app_id, url):
         token = self.__token_for_app_id(app_id)
@@ -79,58 +83,57 @@ class CrittercismClient(object):
             'CR-source': 'integration_new_relic'
         }
 
-        body_str = urllib.urlencode(body_data)
         if token:
             headers.update({'Authorization': 'Bearer %s' % token})
-            body_str = json.dumps(body_data)
 
         if extra_headers:
             headers.update(extra_headers)
-        url = url.replace(' ', '%20')
 
-        try:
-            response, content = self._http.request(url,
-                                                   verb,
-                                                   headers=headers,
-                                                   body=body_str)
+        response = None
 
-        except TypeError, e:
-            print 'Error %s while requesting %s' % (e, url)
-            raise
+        if verb == 'GET':
+            response = requests.get(url, headers=headers)
+        elif verb == 'POST':
+            response = requests.post(url, headers=headers, json=body_data)
+        elif verb == 'TOKEN':
+            response = requests.post(url, headers=headers, params=body_data)
+        else:
+            raise TypeError
 
         if not response:
             raise TimeoutException
 
-        http_response_status = response.get('status')
-        if http_response_status == '400':
+        # TODO (SF) requests has its own exceptions for these; use them.
+        http_response_status = response.status_code
+        if http_response_status == 400:
             # 400	Request parameters were invalid/malformed
             raise MalformedRequestException(
                 {'message': 'You provided invalid/malformed request parameters.',
                  'response': response})
 
-        if http_response_status == '401':
+        elif http_response_status == 401:
             # 401	Invalid oauth token
             raise AuthenticationException(
                 {'message': 'You provided an invalid token. Please re-authenticate.',
                  'response': response})
 
-        if http_response_status == '429':
+        elif http_response_status == 429:
             # 429	API rate limit exceeded
             raise RateLimitExceededException(
                 {'message': 'You have exceeded your rate limit. Please decrease your request frequency.',
                  'response': response})
 
-        if http_response_status == '500':
+        elif http_response_status == 500:
             raise ServerErrorException(
                 {'message': 'Server error on Crittercism API. Please contact Crittercism support',
                  'response': response})
 
-        if http_response_status != '200':
+        elif http_response_status != 200:
             raise CrittercismException(
                 {'message': 'Unknown error on Crittercism API.',
                  'response': response})
 
-        return json.loads(content)
+        return response.json()
 
     def authenticate(self, scope=None):
         body = {
@@ -144,7 +147,7 @@ class CrittercismClient(object):
             body['scope'] = scope
 
         authstr = base64.encodestring('%s' % self._client_id).replace('\n', '')
-        data = self.__request_helper('POST', 'https://developers.crittercism.com/v1.0/token', body, None, {
+        data = self.__request_helper('TOKEN', 'https://developers.crittercism.com/v1.0/token', body, None, {
             'Authorization': "Basic %s" % authstr,
             "Content-Type": "application/x-www-form-urlencoded",
         })
@@ -199,6 +202,14 @@ class CrittercismClient(object):
         return response
 
     def app_versions(self, app_id):
+        """
+        Calls the apps summary endpoint and gets a list of app versions
+        for a particular app ID
+
+        :param app_id: string
+
+        :return: list of app version strings
+        """
         url_suffix = 'apps?attributes=appVersions'
         content = self.__request('GET', url_suffix, {})
 

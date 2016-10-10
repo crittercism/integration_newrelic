@@ -11,7 +11,8 @@ def _response(response_code):
 
 
 def _response_map_key(verb, url, body=None):
-    return '%s|%s|%s' % (verb, url, body)
+    print "response map", '{}|{}|{}'.format(verb, url, body)
+    return '{}|{}|{}'.format(verb, url, body)
 
 
 class MockHTTP(MagicMock):
@@ -31,7 +32,7 @@ class MockHTTP(MagicMock):
                                               json.dumps(request_body or {}))] = (response_code, response_content)
 
     def request(self, url, verb, headers=None, body=None):
-        logging.getLogger().debug("MockHTTP requesting url=%s verb=%s headers=%s body=%s", url, verb, headers, body)
+        logging.getLogger().warn("MockHTTP requesting url=%s verb=%s headers=%s body=%s", url, verb, headers, body)
         try:
             response_code, response_content = self.__response_map.get(_response_map_key(verb, url, body),
                                                                       self.__response_map[_response_map_key(verb, url)])
@@ -49,3 +50,15 @@ class MockNewRelicHTTP(MockHTTP):
         self.add_response_ignore_body_mapping('POST',
                                               'https://insights-collector.newrelic.com/v1/accounts/1/events',
                                               200, {})
+#
+#
+# class MockApiHTTP(MockHTTP):
+#     def __init__(self, *args, **kwargs):
+#         super(MockApiHTTP, self).__init__(*args, **kwargs)
+#
+#         self.add_response_ignore_body_mapping(
+#             'GET',
+#             'https://developers.crittercism.com/v1.0/apps?attributes=appVersions',
+#             200,
+#             {}
+#         )
