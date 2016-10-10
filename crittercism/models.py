@@ -59,6 +59,7 @@ class CRErrorBase(object):
             self._tz_offset = self._data.get('app_timezone_offset')
         else:
             self._tz_offset = self._data.get('appTimeZoneOffset')
+
         self._todays_date = (datetime.utcnow() + timedelta(hours=self._tz_offset))
         if self.build_date_map():
             self._latest_complete_date, self.date_map = self.build_date_map()
@@ -260,10 +261,10 @@ class CrittercismMonitoringResponse(object):
         return self._total_pie
 
     def value_for_group_name(self, name):
-        return self._slices_by_name[name]
+        return self._slices_by_name.get(name)
 
     def value_for_group_label(self, label):
-        return self._slices_by_label[label]
+        return self._slices_by_label.get(label)
 
     # Size of bucket in seconds
     def interval(self):

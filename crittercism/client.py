@@ -1,19 +1,30 @@
 import base64
 from datetime import datetime
-from datetime import timedelta
 import os
 import requests
 
 
-from models import (CRCrash, TimeoutException, MalformedRequestException, AuthenticationException,
-                    RateLimitExceededException, ServerErrorException, CrittercismException, PerformanceManagementPie,
-                    App, ErrorMonitoringPie, ErrorMonitoringGraph, CRException)
+from models import CRCrash
+from models import TimeoutException
+from models import MalformedRequestException
+from models import AuthenticationException
+from models import RateLimitExceededException
+from models import ServerErrorException
+from models import CrittercismException
+from models import PerformanceManagementPie
+from models import App
+from models import ErrorMonitoringPie
+from models import ErrorMonitoringGraph
+from models import CRException
 
 
 class CrittercismClient(object):
-    CRITTERCISM_API_DOMAIN = os.environ.get('CR_API_DOMAIN', 'developers.crittercism.com')
-    CRITTERCISM_URL = 'https://%s/v1.0/%s'
-    CRITTERCISM_TX_URL = 'https://%s/v1.0/transactions/%s/%s'
+    CRITTERCISM_API_DOMAIN = os.environ.get(
+        'CR_API_DOMAIN',
+        'developers.crittercism.com'
+    )
+    CRITTERCISM_URL = 'https://{}/v2/{}'
+    CRITTERCISM_TX_URL = 'https://{}/v2/transactions/{}/{}'
 
     # /allyourbase
     # /v1.0/base
@@ -38,34 +49,39 @@ class CrittercismClient(object):
     def __token_for_app_id(self, app_id):
         token = self._transaction_tokens.get(app_id)
         if not token:
-            token = self.authenticate(scope='app/%s/transactions' % app_id)
+            token = self.authenticate(
+                scope='app/{}/transactions'.format(app_id)
+            )
             self._transaction_tokens[app_id] = token
 
         return token
 
-    def __request(self, verb, url_suffix, body_data):
+    def __request(self, verb, url_suffix=None, params=None):
         return self.__request_helper(
             verb,
-            self.CRITTERCISM_URL % (
+            self.CRITTERCISM_URL.format(
                 self.CRITTERCISM_API_DOMAIN,
                 url_suffix),
-            body_data,
-            self._oauth_token
+            params=params,
+            token=self._oauth_token
         )
 
     def get_paged_transaction_data(self, app_id, url):
         token = self.__token_for_app_id(app_id)
         pages = []
-        page_num = 1
-        page = self.__request_helper('GET', url, {}, token)
+        params = {'pageNum': 1}
+        page = self.__request_helper('GET', url, params={}, token=token)
 
         while page:
             pages.append(page)
-            page_num += 1
-            next_url = url + '?pageNum={}'.format(page_num)
+            params['pageNum'] += 1
 
             if page.get(u'pagination') and page.get(u'pagination')[u'nextPage']:
-                page = self.__request_helper('GET', next_url, {}, token)
+                page = self.__request_helper(
+                    'GET',
+                    url,
+                    params=params,
+                    token=token)
             else:
                 page = None
 
@@ -74,7 +90,13 @@ class CrittercismClient(object):
     def __get_transaction_url(self, url, token):
         return self.__request_helper('GET', url, {}, token)
 
-    def __request_helper(self, verb, url, body_data, token, extra_headers=None):
+    def __request_helper(self,
+                         verb,
+                         url,
+                         params=None,
+                         token=None,
+                         extra_headers=None):
+
         headers = {
             'Accept-Encoding': 'gzip, deflate, sdch',
             'Accept-Language': 'en-US,en;q=0.8',
@@ -84,7 +106,7 @@ class CrittercismClient(object):
         }
 
         if token:
-            headers.update({'Authorization': 'Bearer %s' % token})
+            headers.update({'Authorization': 'Bearer {}'.format(token)})
 
         if extra_headers:
             headers.update(extra_headers)
@@ -92,15 +114,16 @@ class CrittercismClient(object):
         response = None
 
         if verb == 'GET':
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, params=params)
         elif verb == 'POST':
-            response = requests.post(url, headers=headers, json=body_data)
+            response = requests.post(url, headers=headers, json=params)
         elif verb == 'TOKEN':
-            response = requests.post(url, headers=headers, params=body_data)
+            response = requests.post(url, headers=headers, params=params)
         else:
             raise TypeError
 
         if not response:
+            print "URL", url, "HEADERS", headers, "PARAMS", params
             raise TimeoutException
 
         # TODO (SF) requests has its own exceptions for these; use them.
@@ -147,10 +170,16 @@ class CrittercismClient(object):
             body['scope'] = scope
 
         authstr = base64.encodestring('%s' % self._client_id).replace('\n', '')
-        data = self.__request_helper('TOKEN', 'https://developers.crittercism.com/v1.0/token', body, None, {
-            'Authorization': "Basic %s" % authstr,
-            "Content-Type": "application/x-www-form-urlencoded",
-        })
+        data = self.__request_helper(
+            'TOKEN',
+            'https://developers.crittercism.com/v1.0/token',
+            body,
+            None,
+            {
+                'Authorization': 'Basic {}'.format(authstr),
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        )
 
         return data['access_token']
 
@@ -195,8 +224,13 @@ class CrittercismClient(object):
                                 "role"
 
         """
-        url_suffix = 'apps?attributes=%s' % '%2C'.join(attributes or list(self.APP_ATTRIBUTE_CHOICES))
-        content = self.__request('GET', url_suffix, {})
+        params = {}
+
+        url_suffix = 'apps'
+        params['attributes'] = ','.join(
+            attributes or list(self.APP_ATTRIBUTE_CHOICES)
+        )
+        content = self.__request('GET', url_suffix, params=params)
 
         response = [App(app_id, app_data) for app_id, app_data in content.items()]
         return response
@@ -210,10 +244,13 @@ class CrittercismClient(object):
 
         :return: list of app version strings
         """
-        url_suffix = 'apps?attributes=appVersions'
-        content = self.__request('GET', url_suffix, {})
+        url_suffix = 'apps'
 
-        versions = content[app_id]['appVersions']
+        params = {'attributes': 'appVersions'}
+
+        content = self.__request('GET', url_suffix, params=params)
+
+        versions = content['data'][app_id]['appVersions']
 
         return versions
 
@@ -221,18 +258,20 @@ class CrittercismClient(object):
     # /errorMonitoring/graph
     def error_monitoring_graph(self, error_monitoring_request):
         url_suffix = 'errorMonitoring/graph'
-        content = self.__request('POST', url_suffix, {
-            'params': error_monitoring_request.as_hash()
-        })
+
+        params = error_monitoring_request.as_hash()
+
+        content = self.__request('GET', url_suffix, params=params)
 
         return ErrorMonitoringGraph(content)
 
     # /errorMonitoring/pie
     def error_monitoring_pie(self, error_monitoring_request):
         url_suffix = 'errorMonitoring/pie'
-        content = self.__request('POST', url_suffix, {
-            'params': error_monitoring_request.as_hash()
-        })
+
+        params = error_monitoring_request.as_hash()
+
+        content = self.__request('GET', url_suffix, params=params)
 
         return ErrorMonitoringPie(content)
 
@@ -245,36 +284,43 @@ class CrittercismClient(object):
     # /app/{appId}/exception/counts
     # /app/{appId}/exception/summaries
     def app_crash_counts(self, app_id):
-        url_suffix = 'app/%s/crash/counts' % app_id
+        url_suffix = 'app/{}/crash/counts'.format(app_id)
         content = self.__request('GET', url_suffix, {})
 
         return content
 
     def crash_paginated_tables(self, app_id, app_version=None,
                                lookback_timedelta=None):
+
+        params = {}
+
         url_suffix = '{}/crash/paginatedtable'.format(app_id)
 
         if app_version:
-            url_suffix += u'?appVersion={}&'.format(app_version)
+            params['appVersion'] = app_version
 
         if lookback_timedelta:
             start_date = (datetime.now() - lookback_timedelta).isoformat()
             end_date = datetime.now().isoformat()
 
-            url_suffix += 'startDate={}&endDate={}'.format(start_date,
-                                                            end_date)
+            params['startDate'] = start_date
+            params['endDate='] = end_date
 
-        content = self.__request('GET', url_suffix, {})
+        content = self.__request('GET', url_suffix, params=params)
 
         return content
 
     def app_crash_summaries(self, app_id, lookback_timedelta=None):
-        url_suffix = 'app/%s/crash/summaries' % app_id
+        url_suffix = 'app/{}/crash/summaries'.format(app_id)
+
+        params = {}
 
         if lookback_timedelta:
-            url_suffix += '?lastOccurredStart=%s' % self.lookback_start(lookback_timedelta)
+            params['lastOccurredStart'] = self.lookback_start(
+                lookback_timedelta
+            )
 
-        content = self.__request('GET', url_suffix, {})
+        content = self.__request('GET', url_suffix, params=params)
 
         return content
 
@@ -282,39 +328,50 @@ class CrittercismClient(object):
         return CRCrash(content)
 
     def app_exception_counts(self, app_id):
-        url_suffix = 'app/%s/exception/counts' % app_id
-        content = self.__request('GET', url_suffix, {})
+        url_suffix = 'app/{}/exception/counts'.format(app_id)
+        content = self.__request('GET', url_suffix, params={})
 
         return content
 
     def app_exception_summaries(self, app_id, lookback_timedelta=None):
-        url_suffix = 'app/%s/exception/summaries' % app_id
+        url_suffix = 'app/{}/exception/summaries'.format(app_id)
+
+        params = {}
 
         if lookback_timedelta:
-            url_suffix += '?lastOccurredStart=%s' % self.lookback_start(lookback_timedelta)
+            params['lastOccurredStart'] = self.lookback_start(
+                lookback_timedelta
+            )
 
-        content = self.__request('GET', url_suffix, {})
+        content = self.__request('GET', url_suffix, params=params)
 
         return content
 
-    def exception_details(self, crash_hash, include_diagnostics=False):
-        url_suffix = 'exception/%s?diagnostics=%s&dailyOccurrences=true' % (
-                crash_hash, include_diagnostics)
-        content = self.__request('GET', url_suffix, {})
-        return CRException(content)
+    def exception_details(self, app_id, crash_hash, include_diagnostics=False):
+        url_suffix = 'exception/{}/{}'.format(app_id, crash_hash)
+
+        params = {'dailyOccurrences': True,
+                  'diagnostics': include_diagnostics}
+
+        content = self.__request('GET', url_suffix, params=params)
+        return CRException(content['data'])
 
     # /performanceManagement/pie
     def performance_management_pie(self, performance_management_request):
         url_suffix = 'performanceManagement/pie'
-        content = self.__request('POST', url_suffix, {
-            'params': performance_management_request.as_hash()
-        })
+
+        params = performance_management_request.as_hash()
+
+        content = self.__request('GET', url_suffix, params=params)
 
         return PerformanceManagementPie(content)
 
     # Transactions Beta Stuff
     def transactions_details(self, app_id, period=None):
-        url_suffix = 'details/change/%s' % period
-        url = self.CRITTERCISM_TX_URL % (self.CRITTERCISM_API_DOMAIN, app_id, url_suffix)
+        url_suffix = 'details/change/{}'.format(period)
+        url = self.CRITTERCISM_TX_URL.format(
+            self.CRITTERCISM_API_DOMAIN,
+            app_id,
+            url_suffix)
         content = self.get_paged_transaction_data(app_id, url)
         return content

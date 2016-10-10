@@ -18,18 +18,30 @@ class TransactionsETL(BaseETL):
         transactions_groups = self._c_client.transactions_details(self._app_id,
                                                                   period)
 
-        groups = [[(g[u'name'], g[u'link'].replace('txn-report', 'developers'))
-                   for g in t[u'groups']]
-                  for t in transactions_groups]
+        groups = []
+
+        for transaction in transactions_groups:
+            one_group = []
+            for group in transaction['data']:
+                corrected_url = group['link'].replace('txn-report', 'developers')
+                corrected_v2_url = corrected_url.replace('v1.0', 'v2')
+                name_and_link = (group['name'], corrected_v2_url)
+                one_group.append(name_and_link)
+            groups.append(one_group)
+
+        traces_urls = []
 
         for group_pages in groups:
             for group_name, group_url in group_pages:
                 url = '%s/traces/%s' % (group_url, period)
+                traces_urls.append((group_name, url))
 
-                for page in self._c_client.get_paged_transaction_data(app_id,
-                                                                      url):
-                    for trace in page[u'traces']:
-                        self._events.append(self.make_event(trace, group_name))
+        for group_name, url in traces_urls:
+            pages = self._c_client.get_paged_transaction_data(app_id, url)
+
+            for page in pages:
+                for trace in page['data']:
+                    self._events.append(self.make_event(trace, group_name))
 
     def make_event(self, trace, group_name):
         dt = datetime.strptime(trace[u'traceTs'], '%Y-%m-%dT%H:%M:%S.%fZ')
