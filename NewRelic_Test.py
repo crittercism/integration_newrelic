@@ -7,12 +7,6 @@ import argparse
 import subprocess
 from subprocess import PIPE
 import os
-#sample command line
-#CR_USERNAME=amishra+prod1@apteligent.com CR_PASSWORD=Test_789 CR_CLIENT_ID=4IfWHRGz1DE357nnXRGNNs1QtbfESDxc NR_ACCOUNT_ID=59322 NR_INSERT_KEY=_3MI0XKVl7SWYfIpLyqTUA5jGAy2wHdI ./new_relic_connector.py upload 519d53101386202089000007
-
-
-#command line used in the test 
-#python NewRelic_Test.py  -u amishra+prod1@apteligent.com -p Test_789 -c 4IfWHRGz1DE357nnXRGNNs1QtbfESDxc -n 59322 -k _3MI0XKVl7SWYfIpLyqTUA5jGAy2wHdI -a 519d5310138620208900000
 
 parser = argparse.ArgumentParser(description='Script to kick off the New Relic Automation')
 parser.add_argument('-u',"--username",type=str, help='username',required=True,default="amishra+prod1@apteligent.com")
