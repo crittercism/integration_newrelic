@@ -10,13 +10,13 @@ import os
 
 parser = argparse.ArgumentParser(description='Script to kick off the New Relic Automation')
 parser.add_argument('-u',"--username",type=str, help='username',required=True,default="amishra+prod1@apteligent.com")
-parser.add_argument('-p',"--password", type=str, help='password',required=True, default='Test_789')
+parser.add_argument('-p',"--password", type=str, help='password',required=True, default='wrongpassword')
 def validate_new_relic_output():
   print "Validating output"
 
-parser.add_argument('-c',"--clientid",type=str,help='client_id',required=True,default='4IfWHRGz1DE357nnXRGNNs1QtbfESDxc')
+parser.add_argument('-c',"--clientid",type=str,help='client_id',required=True,default='askme')
 parser.add_argument('-n',"--NR_Account_id",type=str,help='NR_Account_id',required=True,default='59322')
-parser.add_argument('-k',"--NR_insert_key",type=str,help='NR_insert_key',required=True,default='_3MI0XKVl7SWYfIpLyqTUA5jGAy2wHdI')
+parser.add_argument('-k',"--NR_insert_key",type=str,help='NR_insert_key',required=True,default='wrong')
 parser.add_argument('-a',"--app_id",type=str,help="app_id",required=True, default="519d53101386202089000007")
 
 
