@@ -64,6 +64,7 @@ class CRErrorBase(object):
     daily_occurrences_by_version = 'daily_occurrences_by_version'
     first_occurred = 'firstOccurred'
     name = 'name'
+    num_unique_sessions = 'num_unique_sessions'
     reason = 'reason'
     display_reason = 'displayReason'
 
@@ -162,7 +163,7 @@ class CRErrorBase(object):
         return latest_complete_datetime, date_map
 
     def unique_session_count(self):
-        return self._data['num_unique_sessions']
+        return self._data[self.num_unique_sessions]
 
     def crittercism_hash(self):
         return self._data[self._hash]

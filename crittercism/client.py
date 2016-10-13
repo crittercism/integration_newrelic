@@ -28,6 +28,7 @@ class CrittercismClient(object):
     get = 'GET'
     post = 'POST'
     token = 'TOKEN'
+    appversions = 'appVersions'
 
     def __init__(self, auth_hash):
         self._client_id = auth_hash.get('client_id')
@@ -271,11 +272,11 @@ class CrittercismClient(object):
         """
         url_suffix = 'apps'
 
-        params = {'attributes': 'appVersions'}
+        params = {'attributes': self.appversions}
 
         content = self.__request(self.get, url_suffix, params=params)
 
-        versions = content['data'][app_id]['appVersions']
+        versions = content['data'][app_id][self.appversions]
 
         return versions
 
