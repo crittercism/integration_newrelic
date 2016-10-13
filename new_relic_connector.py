@@ -13,7 +13,9 @@ from tests.test_errors import ExceptionsTestCase, CrashesTestCase
 from tests.test_history import HistoryTestCase
 from tests.test_performance import PerformanceTestCase
 from tests.test_transactions import TransactionsTestCase
-from tests.test_app_versions import AppVersionsTestCase
+from tests.test_crittercism_client import CrittercismClientTestCase
+from tests.test_crittercism_models import CrittercismModelsTestCase
+from tests.test_etl import EtlTestCase
 
 sys.path.insert(0, os.path.abspath('..'))
 
@@ -44,8 +46,10 @@ with indent(4, quote='>>>'):
         raise Exception('Invalid Input')
 
     if re.match('^test$', args[0]):
-        for tc in (HistoryTestCase, TransactionsTestCase, ExceptionsTestCase, CrashesTestCase, PerformanceTestCase,
-                   AppLoadsTestCase, AppVersionsTestCase):
+        for tc in (HistoryTestCase, TransactionsTestCase, ExceptionsTestCase,
+                   CrashesTestCase, PerformanceTestCase,
+                   AppLoadsTestCase, CrittercismClientTestCase,
+                   CrittercismModelsTestCase, EtlTestCase):
             suite = unittest.TestLoader().loadTestsFromTestCase(tc)
             unittest.TextTestRunner(verbosity=2).run(suite)
         exit()

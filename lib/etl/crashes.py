@@ -9,6 +9,18 @@ class CrashETL(ErrorsByVersionProcessor):
         super(CrashETL, self).__init__(app_id, lookback_minutes, new_relic_account, new_relic_app_id, self.EVENT_TYPE)
 
     def get_errors_with_details(self, lookback_minutes):
+        """
+        Call the the paginatedTables endpoint for 'all' versions of an app
+        Get a list of versions from the /apps endpoint for that app
+        Call the paginatedTables endpoint for each version
+        Build a dict of {hash: {version: daily occurrences}} for each version
+        Then for each error hash in the 'all' versions dict, add a new key
+        'daily_occurrences_by_version' that has the value of the
+        the crashes by version dict to that error hash.
+
+        :param lookback_minutes: int, number of minutes to look back
+        :return: list, a list of CRCrash objects
+        """
         DAILY_OCCURRENCES = 'daily_occurrences'
         DATA = 'data'
         ERRORS = 'errors'

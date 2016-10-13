@@ -19,23 +19,16 @@ from models import CRException
 
 
 class CrittercismClient(object):
-    CRITTERCISM_API_DOMAIN = os.environ.get(
+    crittercism_api_domain = os.environ.get(
         'CR_API_DOMAIN',
         'developers.crittercism.com'
     )
-    CRITTERCISM_URL = 'https://{}/v2/{}'
-    CRITTERCISM_TX_URL = 'https://{}/v2/transactions/{}/{}'
+    crittercism_url = 'https://{}/v2/{}'
+    crittercism_txn_url = 'https://{}/v2/transactions/{}/{}'
+    get = 'GET'
+    post = 'POST'
+    token = 'TOKEN'
 
-    # /allyourbase
-    # /v1.0/base
-    # /apps/crash/counts
-    # /apps/crash/summaries
-    # /apps/exception/counts
-    # /apps/exception/summaries
-    # /errorMonitoring/sparklines
-    # /crash/{hash}
-    # /crash/{hash}
-    # /exception/{hash}
     def __init__(self, auth_hash):
         self._client_id = auth_hash.get('client_id')
         self._username = auth_hash.get('username')
@@ -59,26 +52,34 @@ class CrittercismClient(object):
     def __request(self, verb, url_suffix=None, params=None):
         return self.__request_helper(
             verb,
-            self.CRITTERCISM_URL.format(
-                self.CRITTERCISM_API_DOMAIN,
+            self.crittercism_url.format(
+                self.crittercism_api_domain,
                 url_suffix),
             params=params,
             token=self._oauth_token
         )
 
     def get_paged_transaction_data(self, app_id, url):
+        """
+        For API endpoints that have paged data, get every page of data available.
+
+        :param app_id: string, Id of the app to retrieve information about
+        :param url: string, url that will be called to get paged data
+        :return: list of dictionaries of data returned by the API
+        """
+        pagenum = 'pageNum'
+        pagination = 'pagination'
         token = self.__token_for_app_id(app_id)
         pages = []
-        params = {'pageNum': 1}
-        page = self.__request_helper('GET', url, params={}, token=token)
+        params = {pagenum: 1}
+        page = self.__request_helper(self.get, url, params={}, token=token)
 
         while page:
             pages.append(page)
-            params['pageNum'] += 1
-
-            if page.get(u'pagination') and page.get(u'pagination')[u'nextPage']:
+            params[pagenum] += 1
+            if page.get(pagination) and page.get(pagination)[u'nextPage']:
                 page = self.__request_helper(
-                    'GET',
+                    self.get,
                     url,
                     params=params,
                     token=token)
@@ -87,8 +88,16 @@ class CrittercismClient(object):
 
         return pages
 
+    # TODO (sf) this is probably obsolete
     def __get_transaction_url(self, url, token):
-        return self.__request_helper('GET', url, {}, token)
+        """
+        Bypass the __request method for transactions endpoints.
+
+        :param url: string, url that will be called to get paged data
+        :param token: string, user's oauth token
+        :return: calls __request_helper
+        """
+        return self.__request_helper(self.get, url, {}, token)
 
     def __request_helper(self,
                          verb,
@@ -96,6 +105,15 @@ class CrittercismClient(object):
                          params=None,
                          token=None,
                          extra_headers=None):
+        """
+
+        :param verb: string, 'GET', 'POST', or 'TOKEN' to determine http method
+        :param url: string, API endpoint to be called
+        :param params: dict, parameters for the API call
+        :param token: string, user's oauth token
+        :param extra_headers: dict, any extra headers for the http request
+        :return: dict, API response
+        """
 
         headers = {
             'Accept-Encoding': 'gzip, deflate, sdch',
@@ -113,17 +131,16 @@ class CrittercismClient(object):
 
         response = None
 
-        if verb == 'GET':
+        if verb == self.get:
             response = requests.get(url, headers=headers, params=params)
-        elif verb == 'POST':
+        elif verb == self.post:
             response = requests.post(url, headers=headers, json=params)
-        elif verb == 'TOKEN':
+        elif verb == self.token:
             response = requests.post(url, headers=headers, params=params)
         else:
             raise TypeError
 
         if not response:
-            print "URL", url, "HEADERS", headers, "PARAMS", params
             raise TimeoutException
 
         # TODO (SF) requests has its own exceptions for these; use them.
@@ -158,7 +175,14 @@ class CrittercismClient(object):
 
         return response.json()
 
+    #TODO (sf) scope is probably unnecessary now that transactions is fixed
     def authenticate(self, scope=None):
+        """
+        Uses a username and password to generate an oauth token from the API
+
+        :param scope: string, scope for the token
+        :return: string, oauth token
+        """
         body = {
             'grant_type': 'password',
             'username': self._username,
@@ -171,7 +195,7 @@ class CrittercismClient(object):
 
         authstr = base64.encodestring('%s' % self._client_id).replace('\n', '')
         data = self.__request_helper(
-            'TOKEN',
+            self.token,
             'https://developers.crittercism.com/v1.0/token',
             body,
             None,
@@ -197,12 +221,12 @@ class CrittercismClient(object):
                              "rating",
                              "role"}
 
-    # /apps
     def apps(self, attributes=None):
         """The apps endpoint provides information about a customer's mobile applications.
         The apps endpoint returns a list of apps with links to additional metric endpoints.
         Information requested in the attributes parameter is made available as a series of
         key-value pairs inside the object representing each app.
+        API endpoint: /apps
 
         Required keyword arguments:
         <None>
@@ -230,7 +254,7 @@ class CrittercismClient(object):
         params['attributes'] = ','.join(
             attributes or list(self.APP_ATTRIBUTE_CHOICES)
         )
-        content = self.__request('GET', url_suffix, params=params)
+        content = self.__request(self.get, url_suffix, params=params)
 
         response = [App(app_id, app_data) for app_id, app_data in content.items()]
         return response
@@ -239,6 +263,7 @@ class CrittercismClient(object):
         """
         Calls the apps summary endpoint and gets a list of app versions
         for a particular app ID
+        API endpoint: /apps
 
         :param app_id: string
 
@@ -248,49 +273,78 @@ class CrittercismClient(object):
 
         params = {'attributes': 'appVersions'}
 
-        content = self.__request('GET', url_suffix, params=params)
+        content = self.__request(self.get, url_suffix, params=params)
 
         versions = content['data'][app_id]['appVersions']
 
         return versions
 
-
-    # /errorMonitoring/graph
+    #TODO (sf) is nothing calling this? Find out!
     def error_monitoring_graph(self, error_monitoring_request):
+        """
+        Calls the error monitoring graph API
+        API endpoint: /errorMonitoring/graph
+
+        :param error_monitoring_request: error monitoring request object
+        :return: error monitoring graph object
+        """
         url_suffix = 'errorMonitoring/graph'
 
         params = error_monitoring_request.as_hash()
 
-        content = self.__request('GET', url_suffix, params=params)
+        content = self.__request(self.get, url_suffix, params=params)
 
         return ErrorMonitoringGraph(content)
 
-    # /errorMonitoring/pie
     def error_monitoring_pie(self, error_monitoring_request):
+        """
+        Calls the error monitoring pie API
+        API endpoint: /errorMonitoring/pie
+
+        :param error_monitoring_request: error monitoring request object
+        :return: error monitoring pie object
+        """
         url_suffix = 'errorMonitoring/pie'
 
         params = error_monitoring_request.as_hash()
 
-        content = self.__request('GET', url_suffix, params=params)
+        content = self.__request(self.get, url_suffix, params=params)
 
         return ErrorMonitoringPie(content)
 
-    # This helps us override code for unit testing
     def lookback_start(self, t_delta):
+        """
+        This helps us override code for unit testing
+
+        :param t_delta: timedelta object, time in minutes to look back
+        :return: string, current time minus time in minutes to look back
+        """
         return (datetime.utcnow() - t_delta).strftime('%Y-%m-%dT%H:%M:%S+00:00')
 
-    # /app/{appId}/crash/counts
-    # /app/{appId}/crash/summaries
-    # /app/{appId}/exception/counts
-    # /app/{appId}/exception/summaries
     def app_crash_counts(self, app_id):
+        """
+        Get crash counts for an app.
+        API endpoint: /app/{appId}/crash/counts
+
+        :param app_id: string, app ID to retrieve data about
+        :return: dict, API response
+        """
         url_suffix = 'app/{}/crash/counts'.format(app_id)
-        content = self.__request('GET', url_suffix, {})
+        content = self.__request(self.get, url_suffix, {})
 
         return content
 
     def crash_paginated_tables(self, app_id, app_version=None,
                                lookback_timedelta=None):
+        """
+        Get information about crashes from the paginated table endpoint
+        API endpoint: /{appId}/crash/paginatedtable
+
+        :param app_id: string, app ID to retrieve data about
+        :param app_version: string, version of app
+        :param lookback_timedelta: timedelta object, time in minutes to look back
+        :return: dict, API response
+        """
 
         params = {}
 
@@ -304,13 +358,22 @@ class CrittercismClient(object):
             end_date = datetime.now().isoformat()
 
             params['startDate'] = start_date
-            params['endDate='] = end_date
+            params['endDate'] = end_date
 
-        content = self.__request('GET', url_suffix, params=params)
+        content = self.__request(self.get, url_suffix, params=params)
 
         return content
 
+    #TODO (sf) is anything still calling this?
     def app_crash_summaries(self, app_id, lookback_timedelta=None):
+        """
+        Get crash summary data for an app
+        API endpoint: /app/{appId}/crash/summaries
+
+        :param app_id: string, app ID to retrieve data about
+        :param lookback_timedelta: timedelta object, time in minutes to look back
+        :return: dict, API response
+        """
         url_suffix = 'app/{}/crash/summaries'.format(app_id)
 
         params = {}
@@ -320,20 +383,39 @@ class CrittercismClient(object):
                 lookback_timedelta
             )
 
-        content = self.__request('GET', url_suffix, params=params)
+        content = self.__request(self.get, url_suffix, params=params)
 
         return content
 
     def crash_details(self, content):
+        """
+        :param content: dict, crash data from the API
+        :return: a CRCrash object
+        """
         return CRCrash(content)
 
     def app_exception_counts(self, app_id):
+        """
+        Get exception counts for an app
+        API endpoint: /app/{appId}/exception/counts
+
+        :param app_id: string, app ID to retrieve data about
+        :return: dict, API response
+        """
         url_suffix = 'app/{}/exception/counts'.format(app_id)
-        content = self.__request('GET', url_suffix, params={})
+        content = self.__request(self.get, url_suffix, params={})
 
         return content
 
     def app_exception_summaries(self, app_id, lookback_timedelta=None):
+        """
+        Get exception summaries for an app
+        API endpoint: /app/{appId}/exception/summaries
+
+        :param app_id: string, app ID to retrieve data about
+        :lookback_timedelta: timedelta object, minutes to look back
+        :return: dict, API response
+        """
         url_suffix = 'app/{}/exception/summaries'.format(app_id)
 
         params = {}
@@ -343,34 +425,56 @@ class CrittercismClient(object):
                 lookback_timedelta
             )
 
-        content = self.__request('GET', url_suffix, params=params)
+        content = self.__request(self.get, url_suffix, params=params)
 
         return content
 
-    def exception_details(self, app_id, crash_hash, include_diagnostics=False):
-        url_suffix = 'exception/{}/{}'.format(app_id, crash_hash)
+    def exception_details(self, app_id, exception_hash, include_diagnostics=False):
+        """
+        Get detailed data about each exception by hash
+        API endpoint: /exception/{appId}/{hash}
+
+        :param app_id: string, app ID to retrieve data about
+        :param exception_hash: string, hash of a specific exception
+        :param include_diagnostics: bool, request diagnostics data from the API
+        :return: a CRException object
+        """
+        url_suffix = 'exception/{}/{}'.format(app_id, exception_hash)
 
         params = {'dailyOccurrences': True,
                   'diagnostics': include_diagnostics}
 
-        content = self.__request('GET', url_suffix, params=params)
+        content = self.__request(self.get, url_suffix, params=params)
         return CRException(content['data'])
 
-    # /performanceManagement/pie
     def performance_management_pie(self, performance_management_request):
+        """
+        Get performance management pie data for an app
+        API endpoint: /performanceManagement/pie
+
+        :param performance_management_request: object
+        :return: object
+        """
         url_suffix = 'performanceManagement/pie'
 
         params = performance_management_request.as_hash()
 
-        content = self.__request('GET', url_suffix, params=params)
+        content = self.__request(self.get, url_suffix, params=params)
 
         return PerformanceManagementPie(content)
 
-    # Transactions Beta Stuff
+    # TODO (sf) I bet this can be changed to match the other API calls
     def transactions_details(self, app_id, period=None):
+        """
+        Get transactions data for an app
+        API endpoint: transactions/details/change/{period}
+        :param app_id: string, app ID to retrieve data about
+        :param period: string, ISO period
+        :return: list, a list of API response dicts
+        """
         url_suffix = 'details/change/{}'.format(period)
-        url = self.CRITTERCISM_TX_URL.format(
-            self.CRITTERCISM_API_DOMAIN,
+        url = self.crittercism_txn_url.format(
+            self.crittercism_api_domain,
             app_id,
             url_suffix)
         content = self.get_paged_transaction_data(app_id, url)

@@ -27,6 +27,9 @@ class AuthenticationException(CrittercismException):
 
 
 class App(object):
+    app_type = 'appType'
+    app_name = 'appName'
+
     def __init__(self, app_id, hash_init):
         self._data = hash_init
         self._app_id = app_id
@@ -36,10 +39,10 @@ class App(object):
         return self._app_id
 
     def platform(self):
-        return self._data[u'appType']
+        return self._data[self.app_type]
 
     def name(self):
-        return self._data[u'appName']
+        return self._data[self.app_name]
 
     def set_app_load_data(self, app_load_data):
         self._app_load_data = app_load_data
@@ -52,13 +55,25 @@ ONE_DAY = timedelta(days=1)
 
 
 class CRErrorBase(object):
+    _hash = 'hash'
+    app_id = 'appId'
+    app_time_zone_offset = 'app_timezone_offset'
+    apptimezoneoffset = 'appTimeZoneOffset'
+    app_type = 'appType'
+    cr_app_id = 'crAppId'
+    daily_occurrences_by_version = 'daily_occurrences_by_version'
+    first_occurred = 'firstOccurred'
+    name = 'name'
+    reason = 'reason'
+    display_reason = 'displayReason'
+
     def __init__(self, hash_init):
         self._data = hash_init
         self._oldest_available = None
         if self.is_crash:
-            self._tz_offset = self._data.get('app_timezone_offset')
+            self._tz_offset = self._data.get(self.app_time_zone_offset)
         else:
-            self._tz_offset = self._data.get('appTimeZoneOffset')
+            self._tz_offset = self._data.get(self.apptimezoneoffset)
 
         self._todays_date = (datetime.utcnow() + timedelta(hours=self._tz_offset))
         if self.build_date_map():
@@ -95,12 +110,12 @@ class CRErrorBase(object):
         return {
             version: num_list[0] if date == todays_date else 0
             for version, [date, num_list]
-            in self._data['daily_occurrences_by_version'].items()
+            in self._data[self.daily_occurrences_by_version].items()
         }
 
     def build_date_map(self):
         """
-        For crashes, this uses the array of arrays in 'daily_occourrences'
+        For crashes, this uses the list of lists in 'daily_occurrences'
         For exceptions, adds the 'dailyOccurrencesByVersion' for each version
         to get the total daily occurrences.
 
@@ -113,9 +128,9 @@ class CRErrorBase(object):
             latest_complete_datetime = datetime.strptime(
                 incomplete_data_latest_date, '%Y%m%d')
         else:
-            daily_occurrences_by_version = self._data.get(u'dailyOccurrencesByVersion')
+            daily_occurrences_by_version = self._data.get('dailyOccurrencesByVersion')
             if daily_occurrences_by_version:
-                incomplete_data_latest_date, daily_data = daily_occurrences_by_version[u'total']
+                incomplete_data_latest_date, daily_data = daily_occurrences_by_version['total']
                 latest_complete_datetime = datetime.strptime(incomplete_data_latest_date, '%Y-%m-%d')
                 total = defaultdict(int)
                 for version, errors in daily_occurrences_by_version.items():
@@ -150,31 +165,36 @@ class CRErrorBase(object):
         return self._data['num_unique_sessions']
 
     def crittercism_hash(self):
-        return self._data[u'hash']
+        return self._data[self._hash]
 
     def crittercism_app_id(self):
-        return self._data['appId']
+        return self._data[self.app_id]
 
     def as_event_dict(self, app_id):
+        """
+        Convert the error object into a dictionary
+
+        :param app_id: string
+        :return: dict
+        """
         if self.is_crash:
             return {
-                'crAppId': app_id,
-                'hash': self._data['hash'],
-                'firstOccurred': self._data['first_occurred_time'],
-                'name': self._data['name'],
-                'reason': self._data['reason'],
-                'displayReason': self._data['display_reason'],
+                self.cr_app_id: app_id,
+                self._hash: self._data[self._hash],
+                self.first_occurred: self._data['first_occurred_time'],
+                self.name: self._data[self.name],
+                self.reason: self._data[self.reason],
+                self.display_reason: self._data['display_reason'],
                 }
         else:
             return {
-                'crAppId': self._data[u'appId'],
-                'hash': self._data[u'hash'],
-                'unsymbolizedHash': self._data[u'unsymbolizedHash'],
-                'firstOccurred': self._data[u'firstOccurred'],
-                'appType': self._data[u'appType'],
-                'name': self._data[u'name'],
-                'reason': self._data[u'reason'],
-                'displayReason': self._data[u'displayReason'],
+                self.cr_app_id: self._data[self.app_id],
+                self._hash: self._data[self._hash],
+                self.first_occurred: self._data[self.first_occurred],
+                self.app_type: self._data[self.app_type],
+                self.name: self._data[self.name],
+                self.reason: self._data[self.reason],
+                self.display_reason: self._data[self.display_reason],
                 }
 
     def __str__(self):
@@ -239,16 +259,20 @@ class ErrorMonitoringRequest(object):
 
 
 class CrittercismMonitoringResponse(object):
+    data = 'data'
+    label = 'label'
+    name = 'name'
+    value = 'value'
     def __init__(self, response):
-        self._response = response[u'data']
-        self._slices = self._response.get(u'slices', [])
-        self._total_pie = sum([s[u'value'] for s in self._slices])
-        self._slices_by_name = {s[u'name']: s[u'value'] for s in self._slices}
-        self._slices_by_label = {s[u'label']: s[u'value'] for s in self._slices}
-        self._group_list = [(s[u'name'], s[u'label']) for s in self._slices]
-        self._start_time = datetime.strptime(self._response[u'start'],
+        self._response = response[self.data]
+        self._slices = self._response.get('slices', [])
+        self._total_pie = sum([s[self.value] for s in self._slices])
+        self._slices_by_name = {s[self.name]: s[self.value] for s in self._slices}
+        self._slices_by_label = {s[self.label]: s[self.value] for s in self._slices}
+        self._group_list = [(s[self.name], s[self.label]) for s in self._slices]
+        self._start_time = datetime.strptime(self._response['start'],
                                              '%Y-%m-%dT%H:%M:%S')
-        self._end_time = datetime.strptime(self._response[u'end'],
+        self._end_time = datetime.strptime(self._response['end'],
                                            '%Y-%m-%dT%H:%M:%S')
 
     def slices(self):
@@ -268,7 +292,7 @@ class CrittercismMonitoringResponse(object):
 
     # Size of bucket in seconds
     def interval(self):
-        return self._response[u'interval']
+        return self._response['interval']
 
     def time_range(self):
         return self._start_time, self._end_time
@@ -283,11 +307,11 @@ class ErrorMonitoringGraph(CrittercismMonitoringResponse):
         date_map = {}
         d = self._start_time
 
-        for day_data in self._response[u'series'][0][u'points']:
+        for day_data in self._response['series'][0]['points']:
             date_map[d] = day_data
             d += ONE_DAY
 
-        assert d == datetime.strptime(self._response[u'end'],
+        assert d == datetime.strptime(self._response['end'],
                                       '%Y-%m-%dT%H:%M:%S')
         return date_map
 
