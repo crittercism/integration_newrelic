@@ -61,12 +61,20 @@ class CRErrorBase(object):
     apptimezoneoffset = 'appTimeZoneOffset'
     app_type = 'appType'
     cr_app_id = 'crAppId'
+    daily_occurrences = 'daily_occurrences'
     daily_occurrences_by_version = 'daily_occurrences_by_version'
-    first_occurred = 'firstOccurred'
+    dailyOccurrencesByVersion = 'dailyOccurrencesByVersion'
+    firstOccurred = 'firstOccurred'
+    first_occurred_time = 'first_occurred_time'
     name = 'name'
     num_unique_sessions = 'num_unique_sessions'
     reason = 'reason'
-    display_reason = 'displayReason'
+    displayReason = 'displayReason'
+    display_reason = 'display_reason'
+    total = 'total'
+
+    date_format_with_hyphens = '%Y-%m-%d'
+    date_format_no_hyphens = '%Y%m%d'
 
     def __init__(self, hash_init):
         self._data = hash_init
@@ -107,7 +115,7 @@ class CRErrorBase(object):
         return self.date_map.get(self.normalize_datetime_to_midnight(date), 0)
 
     def latest_occurrences_by_version(self):
-        todays_date = self._todays_date.strftime('%Y%m%d')
+        todays_date = self._todays_date.strftime(self.date_format_no_hyphens)
         return {
             version: num_list[0] if date == todays_date else 0
             for version, [date, num_list]
@@ -125,31 +133,31 @@ class CRErrorBase(object):
         of this crash on that day.
         """
         if self.is_crash:
-            incomplete_data_latest_date, daily_data = self._data['daily_occurrences']
+            incomplete_data_latest_date, daily_data = self._data[self.daily_occurrences]
             latest_complete_datetime = datetime.strptime(
-                incomplete_data_latest_date, '%Y%m%d')
+                incomplete_data_latest_date, self.date_format_no_hyphens)
         else:
-            daily_occurrences_by_version = self._data.get('dailyOccurrencesByVersion')
+            daily_occurrences_by_version = self._data.get(self.dailyOccurrencesByVersion)
             if daily_occurrences_by_version:
-                incomplete_data_latest_date, daily_data = daily_occurrences_by_version['total']
-                latest_complete_datetime = datetime.strptime(incomplete_data_latest_date, '%Y-%m-%d')
+                incomplete_data_latest_date, daily_data = daily_occurrences_by_version[self.total]
+                latest_complete_datetime = datetime.strptime(incomplete_data_latest_date, self.date_format_with_hyphens)
                 total = defaultdict(int)
                 for version, errors in daily_occurrences_by_version.items():
-                    start_date = datetime.strptime(errors[0], '%Y-%m-%d')
+                    start_date = datetime.strptime(errors[0], self.date_format_with_hyphens)
                     daily_error_counts = errors[1]
                     for index, error_count in enumerate(reversed(daily_error_counts)):
                         date = (start_date - timedelta(days=index))
                         total[date] += error_count
 
                 dates = sorted(total.keys())
-                total_daily_occurrences = (dates[-1].strftime('%Y-%m-%d'), [])
+                total_daily_occurrences = (dates[-1].strftime(self.date_format_with_hyphens), [])
 
                 for date in dates:
                     total_daily_occurrences[1].append(total[date])
             else:
                 return None
 
-        today = datetime.today().strftime('%Y-%m-%d')
+        today = datetime.today().strftime(self.date_format_with_hyphens)
         if incomplete_data_latest_date == today:
             latest_complete_datetime -= ONE_DAY
 
@@ -182,20 +190,20 @@ class CRErrorBase(object):
             return {
                 self.cr_app_id: app_id,
                 self._hash: self._data[self._hash],
-                self.first_occurred: self._data['first_occurred_time'],
+                self.firstOccurred: self._data[self.first_occurred_time],
                 self.name: self._data[self.name],
                 self.reason: self._data[self.reason],
-                self.display_reason: self._data['display_reason'],
+                self.displayReason: self._data[self.display_reason],
                 }
         else:
             return {
                 self.cr_app_id: self._data[self.app_id],
                 self._hash: self._data[self._hash],
-                self.first_occurred: self._data[self.first_occurred],
+                self.firstOccurred: self._data[self.firstOccurred],
                 self.app_type: self._data[self.app_type],
                 self.name: self._data[self.name],
                 self.reason: self._data[self.reason],
-                self.display_reason: self._data[self.display_reason],
+                self.displayReason: self._data[self.displayReason],
                 }
 
     def __str__(self):
@@ -261,22 +269,29 @@ class ErrorMonitoringRequest(object):
 
 class CrittercismMonitoringResponse(object):
     data = 'data'
+    end = 'end'
+    interval = 'interval'
     label = 'label'
     name = 'name'
+    slices = 'slices'
+    start = 'start'
     value = 'value'
+
+    date_format = '%Y-%m-%dT%H:%M:%S'
+
     def __init__(self, response):
         self._response = response[self.data]
-        self._slices = self._response.get('slices', [])
+        self._slices = self._response.get(self.slices, [])
         self._total_pie = sum([s[self.value] for s in self._slices])
         self._slices_by_name = {s[self.name]: s[self.value] for s in self._slices}
         self._slices_by_label = {s[self.label]: s[self.value] for s in self._slices}
         self._group_list = [(s[self.name], s[self.label]) for s in self._slices]
-        self._start_time = datetime.strptime(self._response['start'],
-                                             '%Y-%m-%dT%H:%M:%S')
-        self._end_time = datetime.strptime(self._response['end'],
-                                           '%Y-%m-%dT%H:%M:%S')
+        self._start_time = datetime.strptime(self._response[self.start],
+                                             self.date_format)
+        self._end_time = datetime.strptime(self._response[self.end],
+                                           self.date_format)
 
-    def slices(self):
+    def get_slices(self):
         return self._slices
 
     def all_group_names(self):
@@ -292,14 +307,20 @@ class CrittercismMonitoringResponse(object):
         return self._slices_by_label.get(label)
 
     # Size of bucket in seconds
-    def interval(self):
-        return self._response['interval']
+    def get_interval(self):
+        return self._response[self.interval]
 
     def time_range(self):
         return self._start_time, self._end_time
 
 
 class ErrorMonitoringGraph(CrittercismMonitoringResponse):
+    end = 'end'
+    series = 'series'
+    points = 'points'
+
+    date_format = '%Y-%m-%dT%H:%M:%S'
+
     def __init__(self, response):
         super(ErrorMonitoringGraph, self).__init__(response)
         self._date_map = self.build_date_map()
@@ -308,12 +329,12 @@ class ErrorMonitoringGraph(CrittercismMonitoringResponse):
         date_map = {}
         d = self._start_time
 
-        for day_data in self._response['series'][0]['points']:
+        for day_data in self._response[self.series][0][self.points]:
             date_map[d] = day_data
             d += ONE_DAY
 
-        assert d == datetime.strptime(self._response['end'],
-                                      '%Y-%m-%dT%H:%M:%S')
+        assert d == datetime.strptime(self._response[self.end],
+                                      self.date_format)
         return date_map
 
     def earliest_date(self):
@@ -339,6 +360,7 @@ class PerformanceManagementRequest(object):
     DURATION_KEY = 'duration'
     GROUP_BY_KEY = 'groupBy'
     FILTERS_KEY = 'filters'
+    APP_ID_KEY = 'appId'
     APP_IDS_KEY = 'appIds'
 
     VALID_METRICS = {'latency', 'dataIn', 'dataOut', 'volume', 'errors'}
@@ -366,7 +388,7 @@ class PerformanceManagementRequest(object):
         self._data.update(params)
 
     def as_hash(self):
-        if not self._data.get(self.APP_IDS_KEY) and not self._data.get('appId'):
+        if not self._data.get(self.APP_IDS_KEY) and not self._data.get(self.APP_ID_KEY):
             raise MalformedRequestException
 
         return self._data

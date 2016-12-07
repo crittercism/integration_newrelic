@@ -63,7 +63,7 @@ class MetricsAggregateSplitter(BaseETL):
         for group in self.get_groups():
             ranges[group] = {}
             so_far = 0
-            for s in volumes[group].slices():
+            for s in volumes[group].get_slices():
                 num_in_group = int(s[u'value'] * self._fudge_ratio)
                 ranges[group][s[u'name']] = (so_far, so_far + num_in_group)
                 for i in range(so_far, so_far + num_in_group):
