@@ -21,7 +21,7 @@ class ErrorsByVersionProcessor(BaseETL):
             todays_date = cr_error.current_date().strftime('%Y-%m-%d')
             e = Event(new_relic_account, new_relic_app_id, event_type, datetime.now())
 
-            for k, v in cr_error.as_event_dict().items():
+            for k, v in cr_error.as_event_dict(app_id).items():
                 e.set(k, v)
 
             for version, version_occurrences in cr_error.current_date_occurrences().items():

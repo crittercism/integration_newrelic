@@ -11,7 +11,7 @@ def _response(response_code):
 
 
 def _response_map_key(verb, url, body=None):
-    return '%s|%s|%s' % (verb, url, body)
+    return '{}|{}|{}'.format(verb, url, body)
 
 
 class MockHTTP(MagicMock):
