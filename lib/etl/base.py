@@ -11,11 +11,17 @@ class BaseETL(object):
         self._new_relic_app_id = new_relic_app_id
         self._event_type = event_type
 
-        self._c_client = CrittercismClient({
-            'client_id': os.environ.get('CR_CLIENT_ID'),
-            'username': os.environ.get('CR_USERNAME'),
-            'password': os.environ.get('CR_PASSWORD'),
-        })
+        if os.environ.get('NR_DEBUG'):
+            self._c_client = CrittercismClient({
+                'token': os.environ.get('CR_OAUTH')
+            })
+
+        else:
+            self._c_client = CrittercismClient({
+                'client_id': os.environ.get('CR_CLIENT_ID'),
+                'username': os.environ.get('CR_USERNAME'),
+                'password': os.environ.get('CR_PASSWORD'),
+            })
 
     def unpacked_events(self):
         return self._events

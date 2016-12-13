@@ -5,6 +5,12 @@ from lib.new_relic.models import Event
 
 
 class MetricsAggregateSplitter(BaseETL):
+    NAME = 'name'
+    VALUE = 'value'
+    TRUE = 'true'
+    FALSE = 'false'
+    UNKNOWN = 'unknown'
+
     def mean_strategy(self, metric, metric_data):
         for group in self.get_groups():
             for group_name, (start, end) in self._ranges[group].items():
@@ -23,33 +29,49 @@ class MetricsAggregateSplitter(BaseETL):
                 num_true = int((end - start) * percentage_true)
                 end_true = min(start + num_true + 1, end)
                 for i in range(start, end_true):
-                    self._events[i].set(metric, 'true')
+                    self._events[i].set(metric, self.TRUE)
                 for i in range(end_true, end):
-                    self._events[i].set(metric, 'false')
+                    self._events[i].set(metric, self.FALSE)
 
-    def __init__(self, app_id, lookback_minutes, new_relic_account, new_relic_app_id, event_type):
-        super(MetricsAggregateSplitter, self).__init__(app_id, lookback_minutes, new_relic_account, new_relic_app_id, event_type)
+    def __init__(self,
+                 app_id,
+                 lookback_minutes,
+                 new_relic_account,
+                 new_relic_app_id,
+                 event_type):
+        super(MetricsAggregateSplitter, self).__init__(
+            app_id,
+            lookback_minutes,
+            new_relic_account,
+            new_relic_app_id, event_type
+        )
 
         volumes = self.get_data(self.get_volume_metric())
-        num_queried_events = volumes.values()[0].total()
+        events_in_volume = []
+        self._events = []
+        for volume in volumes.values():
+            events_in_volume.append(volume.total())
+        num_events = max(events_in_volume)
         self._start_time, self._end_time = volumes.values()[0].time_range()
-        logging.getLogger().debug('start_time: %s end_time: %s', self._start_time, self._end_time)
-        num_events = num_queried_events - self.get_num_already_uploaded()
+        logging.getLogger().debug('start_time: %s end_time: %s',
+                                  self._start_time,
+                                  self._end_time)
 
         if not num_events:
-            if num_queried_events:
-                logging.getLogger().info('All events queried were been uploaded. num_queried=%s', num_queried_events)
-
-            logging.getLogger().info('No new events to upload.')
-            self._events = []
+            logging.getLogger().info('No events to upload.')
             return
 
-        self._fudge_ratio = num_events / num_queried_events
         logging.getLogger().debug('Creating events')
-        self._events = [Event(new_relic_account, new_relic_app_id, event_type, random_timestamp(self._start_time,
-                                                                                                self._end_time))
-                        for
-                        i in range(num_events)]
+
+        for i in range(num_events):
+            self._events.append(
+                Event(new_relic_account,
+                      new_relic_app_id,
+                      event_type,
+                      random_timestamp(self._start_time, self._end_time)
+                      )
+            )
+
         logging.getLogger().debug('Extracting ranges and setting volumes.')
         self._ranges = self.get_event_ranges(volumes)
         logging.getLogger().debug('Getting the rest of the data and processing')
@@ -62,15 +84,21 @@ class MetricsAggregateSplitter(BaseETL):
         ranges = {}
         for group in self.get_groups():
             ranges[group] = {}
-            so_far = 0
+            events_updated = 0
             for s in volumes[group].get_slices():
-                num_in_group = int(s[u'value'] * self._fudge_ratio)
-                ranges[group][s[u'name']] = (so_far, so_far + num_in_group)
-                for i in range(so_far, so_far + num_in_group):
-                    self._events[i].set(group, s[u'name'])
-
-                so_far += num_in_group
-
+                num_in_group = int(s[self.VALUE])
+                ranges[group][s[self.NAME]] = (events_updated,
+                                               events_updated + num_in_group)
+                for i in range(events_updated,
+                               events_updated + num_in_group):
+                    try:
+                        self._events[i].set(group, s[self.NAME])
+                    except IndexError as e:
+                        raise
+                events_updated += num_in_group
+            while events_updated < len(self._events):
+                self._events[events_updated].set(group, self.UNKNOWN)
+                events_updated += 1
         return ranges
 
     def get_volume_metric(self):
@@ -84,6 +112,3 @@ class MetricsAggregateSplitter(BaseETL):
 
     def get_metrics_and_strategies(self):
         raise
-
-    def get_num_already_uploaded(self):
-        return 0
