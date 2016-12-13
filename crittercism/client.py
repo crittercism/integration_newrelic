@@ -41,7 +41,7 @@ class CrittercismClient(object):
             self._oauth_token = self.authenticate()
 
     def __token_for_app_id(self, app_id):
-        token = self._transaction_tokens.get(app_id)
+        token = self._oauth_token
         if not token:
             token = self.authenticate(
                 scope='app/{}/transactions'.format(app_id)
